@@ -157,6 +157,9 @@ func traceToZipkin(trace tracer.RawTrace) zipkinTrace {
 				Value: vs,
 			})
 		}
+
+		// TODO(amanda) Removed until we can work out how logkv fits into the zipkin story.
+		/*
 		for _, log := range span.Logs {
 			zspan.Annotations = append(zspan.Annotations,
 				zipkinAnnotation{
@@ -167,6 +170,8 @@ func traceToZipkin(trace tracer.RawTrace) zipkinTrace {
 					Value:     log.Event,
 				})
 		}
+		*/
+
 		zspan.Annotations = append(zspan.Annotations,
 			zipkinAnnotation{
 				Endpoint: zipkinEndpoint{

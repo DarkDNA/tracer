@@ -2,6 +2,7 @@
 package grpc
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/tracer/tracer/server"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -75,11 +77,32 @@ func (g *GRPC) Store(ctx context.Context, req *pb.StoreRequest) (*pb.StoreRespon
 				if err != nil {
 					return nil, err
 				}
-				sp.Logs = append(sp.Logs, opentracing.LogData{
-					Event:     tag.Key,
-					Payload:   tag.Value,
-					Timestamp: t,
-				})
+
+				if tag.Key == "logkv-json" {
+					rec := opentracing.LogRecord{
+						Timestamp: t,
+					}
+
+					var tmp map[string]interface{}
+
+					if err := json.Unmarshal([]byte(tag.Value), &tmp); err != nil {
+						return nil, err
+					}
+
+					for k, v := range tmp {
+						rec.Fields = append(rec.Fields, log.Object(k, v))
+					}
+
+					sp.Logs = append(sp.Logs, rec)
+				} else {
+					sp.Logs = append(sp.Logs, opentracing.LogRecord{
+						Timestamp: t,
+						Fields: []log.Field{
+							log.String("event", tag.Key),
+							log.String("payload", tag.Value),
+						},
+					})
+				}
 			} else {
 				sp.Tags[tag.Key] = tag.Value
 			}
