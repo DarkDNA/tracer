@@ -27,8 +27,8 @@ func setup(srv *server.Server, conf map[string]interface{}) (server.QueryTranspo
 		mux:    http.NewServeMux(),
 	}
 
-	h.mux.HandleFunc("/trace/", h.TraceByID)
-	h.mux.HandleFunc("/span/", h.SpanByID)
+	h.mux.HandleFunc("/trace", h.TraceByID)
+	h.mux.HandleFunc("/span", h.SpanByID)
 	h.mux.HandleFunc("/trace/query", h.QueryTraces)
 
 	h.mux.HandleFunc("/services", h.ListServices)
@@ -96,7 +96,7 @@ func (h *HTTP) QueryTraces(w http.ResponseWriter, r *http.Request) {
 	args := r.URL.Query()
 	var qry server.Query
 	qry.Num = 10
-	
+
 	if tmp, ok := args["start_time"]; ok {
 		qry.StartTime, _ = time.Parse(time.RFC3339, tmp[0])
 	}
