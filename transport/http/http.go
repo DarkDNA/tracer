@@ -95,7 +95,8 @@ func (h *HTTP) ListServices(w http.ResponseWriter, r *http.Request) {
 func (h *HTTP) QueryTraces(w http.ResponseWriter, r *http.Request) {
 	args := r.URL.Query()
 	var qry server.Query
-
+	qry.Num = 10
+	
 	if tmp, ok := args["start_time"]; ok {
 		qry.StartTime, _ = time.Parse(time.RFC3339, tmp[0])
 	}
