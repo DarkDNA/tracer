@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/tracer/tracer/server"
 )
@@ -28,6 +29,9 @@ func setup(srv *server.Server, conf map[string]interface{}) (server.QueryTranspo
 	h.mux.HandleFunc("/trace/", h.TraceByID)
 	h.mux.HandleFunc("/span/", h.SpanByID)
 	h.mux.HandleFunc("/trace/query/", h.QueryTraces)
+
+	h.mux.HandleFunc("/services", h.ListServices)
+
 	return h, nil
 }
 
@@ -74,6 +78,54 @@ func (h *HTTP) SpanByID(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(span)
 }
 
-func (h *HTTP) QueryTraces(w http.ResponseWriter, r *http.Request) {
+func (h *HTTP) ListServices(w http.ResponseWriter, r *http.Request) {
+	svcs, err := h.srv.Storage.Services()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 
+	if err := json.NewEncoder(w).Encode(svcs); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
+func (h *HTTP) QueryTraces(w http.ResponseWriter, r *http.Request) {
+	args := r.URL.Query()
+
+	var qry server.Query
+
+	if tmp, ok := args["start_time"]; ok {
+		qry.StartTime, _ = time.Parse(time.RFC3339, tmp[0])
+	}
+
+	if tmp, ok := args["finish_time"]; ok {
+		qry.FinishTime, _ = time.Parse(time.RFC3339, tmp[0])
+	}
+
+	if tmp, ok := args["limit"]; ok {
+		tmp2, err := strconv.ParseUint(tmp[0], 10, 64)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		qry.Num = int(tmp2)
+	}
+
+	if tmp, ok := args["services"]; ok {
+		qry.ServiceNames = tmp[:]
+	}
+
+	spans, err := h.srv.Storage.QueryTraces(qry)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(spans); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 }

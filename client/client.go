@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/tracer/tracer"
 )
@@ -26,6 +27,50 @@ func NewQueryClient(host string) *QueryClient {
 		host:   host,
 		client: &http.Client{},
 	}
+}
+
+// Query runs a query against the remote server.
+func (q *QueryClient) QueryTraces(qry server.Query) ([]tracer.RawSpan, error) {
+	var args url.Values
+
+	if !time.IsZero(qry.StartTime) {
+		args.Add("start_time", qry.StartTime.Format(time.RFC3339))
+	}
+
+	if !time.IsZero(qry.FinishTime) {
+		args.Add("finish_time", qry.FinishTime.Format(time.RFC3339))
+	}
+
+	if qry.OperationName != "" {
+		args.Add("operation_name", qry.OperationName)
+	}
+
+	if qry.Num != 0 {
+		args.Add("limit", fmt.Sprintf("%d", qry.Num))
+	}
+
+	if len(qry.ServiceNames) > 0 {
+		args.Add("services", qry.ServiceNames...)
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/trace/query?%s", host, args.Encode()), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := q.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	var ret []tracer.RawSpan
+	if err := json.NewDecoder(resp.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+
+	return ret, nil
 }
 
 // SpanByID returns a span given its ID.
