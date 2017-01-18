@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "github.com/golang/protobuf/ptypes/timestamp/timestamp.proto";
+option go_package = "pb";
 
 message Trace {}
 

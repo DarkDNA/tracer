@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // load the postgres driver
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 func init() {
@@ -149,13 +151,20 @@ ON CONFLICT (id) DO
 			return err
 		}
 	}
+
 	for _, l := range sp.Logs {
-		v := ""
-		if l.Payload != nil {
-			v = fmt.Sprintf("%v", l.Payload)
+		tmp := make(map[string]interface{}, len(l.Fields))
+		for _, rec := range l.Fields {
+			tmp[rec.Key()] = rec.Value()
 		}
+
+		buff, err := json.Marshal(tmp)
+		if err != nil {
+			return err
+		}
+
 		_, err = tx.Exec(insertLog,
-			int64(sp.SpanID), int64(sp.TraceID), l.Event, v, l.Timestamp)
+			int64(sp.SpanID), int64(sp.TraceID), "logkv-json", string(buff), l.Timestamp)
 		if err != nil {
 			return err
 		}
@@ -265,11 +274,29 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 		if tagKey.String != "" {
 			if tagTime == nil {
 				span.Tags[tagKey.String] = tagValue.String
-			} else {
-				span.Logs = append(span.Logs, opentracing.LogData{
+			} else if tagKey.String == "logkv-json" {
+				rec := opentracing.LogRecord{
 					Timestamp: *tagTime,
-					Event:     tagKey.String,
-					Payload:   tagValue.String,
+				}
+
+				var tmp map[string]interface{}
+
+				if err := json.Unmarshal([]byte(tagValue.String), &tmp); err != nil {
+					return nil, err
+				}
+
+				for k, v := range tmp {
+					rec.Fields = append(rec.Fields, log.Object(k, v))
+				}
+
+				span.Logs = append(span.Logs, rec)
+			} else {
+				span.Logs = append(span.Logs, opentracing.LogRecord{
+					Timestamp: *tagTime,
+					Fields: []log.Field{
+						log.String("event", tagKey.String),
+						log.String("payload", tagValue.String),
+					},
 				})
 			}
 		}

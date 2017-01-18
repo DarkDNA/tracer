@@ -1,6 +1,7 @@
 package tracer
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -134,10 +135,20 @@ func (g *GRPC) flush() error {
 				g.logger.Printf("dropping log entry because of error: %s", err)
 				continue
 			}
-			ps := fmt.Sprintf("%v", l.Payload) // XXX
+
+			tmp := make(map[string]interface{}, len(l.Fields))
+			for _, rec := range l.Fields {
+				tmp[rec.Key()] = rec.Value()
+			}
+
+			buff, err := json.Marshal(tmp)
+			if err != nil {
+				return err
+			}
+
 			tags = append(tags, &pb.Tag{
-				Key:   l.Event,
-				Value: ps,
+				Key:   "logkv-json",
+				Value: string(buff),
 				Time:  t,
 			})
 		}

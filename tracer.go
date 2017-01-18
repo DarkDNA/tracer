@@ -25,13 +25,14 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
-	"log"
+	stdlog "log"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 // The various flags of a Span.
@@ -50,7 +51,7 @@ type Logger interface {
 type defaultLogger struct{}
 
 func (defaultLogger) Printf(format string, values ...interface{}) {
-	log.Printf(format, values...)
+	stdlog.Printf(format, values...)
 }
 
 // valueType returns the broad categorization of a value's type and
@@ -105,8 +106,8 @@ type RawSpan struct {
 	StartTime     time.Time `json:"start_time"`
 	FinishTime    time.Time `json:"finish_time"`
 
-	Tags map[string]interface{} `json:"tags"`
-	Logs []opentracing.LogData  `json:"logs"`
+	Tags map[string]interface{}  `json:"tags"`
+	Logs []opentracing.LogRecord `json:"logs"`
 }
 
 // RawSpan returns a deep copy of the span's underlying data.
@@ -119,7 +120,7 @@ func (sp *Span) RawSpan() RawSpan {
 	for k, v := range tags {
 		raw.Tags[k] = v
 	}
-	raw.Logs = append([]opentracing.LogData(nil), raw.Logs...)
+	raw.Logs = append([]opentracing.LogRecord(nil), raw.Logs...)
 	baggage := raw.Baggage
 	raw.Baggage = map[string]string{}
 	for k, v := range baggage {
@@ -196,7 +197,7 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	}
 	sp.raw.FinishTime = opts.FinishTime
 	for _, log := range opts.BulkLogData {
-		sp.log(log)
+		sp.log(log.ToLogRecord())
 	}
 	if err := sp.tracer.storer.Store(sp.raw); err != nil {
 		sp.tracer.Logger.Printf("error while storing tracing span: %s", err)
@@ -208,8 +209,10 @@ func (sp *Span) LogEvent(event string) {
 	if !sp.Sampled() {
 		return
 	}
-	sp.Log(opentracing.LogData{
-		Event: event,
+	sp.log(opentracing.LogRecord{
+		Fields: []log.Field{
+			log.String("event", event),
+		},
 	})
 }
 
@@ -218,9 +221,11 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 	if !sp.Sampled() {
 		return
 	}
-	sp.Log(opentracing.LogData{
-		Event:   event,
-		Payload: payload,
+	sp.log(opentracing.LogRecord{
+		Fields: []log.Field{
+			log.String("event", event),
+			log.Object("payload", payload),
+		},
 	})
 }
 
@@ -228,20 +233,39 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 func (sp *Span) Log(data opentracing.LogData) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
-	sp.log(data)
+
+	sp.log(data.ToLogRecord())
 }
 
-func (sp *Span) log(data opentracing.LogData) {
+// LogKV implements the opentracing.Span interface.
+func (sp *Span) LogKV(kv ...interface{}) {
+	logs, err := log.InterleavedKVToFields(kv...)
+	if err != nil {
+		return
+	}
+
+	sp.LogFields(logs...)
+}
+
+// LogFields implements the opentracing.Span interface.
+func (sp *Span) LogFields(fields ...log.Field) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+
+	sp.log(opentracing.LogRecord{
+		Fields: fields,
+	})
+}
+
+func (sp *Span) log(data opentracing.LogRecord) {
 	if !sp.sampled() {
 		return
 	}
-	if _, ok := valueType(data.Payload); !ok {
-		sp.tracer.Logger.Printf("unsupported log payload type for event %q: %T", data.Event, data.Payload)
-		return
-	}
+
 	if data.Timestamp.IsZero() {
 		data.Timestamp = time.Now()
 	}
+
 	sp.raw.Logs = append(sp.raw.Logs, data)
 }
 
