@@ -138,7 +138,7 @@ func (g *GRPC) flush() error {
 
 			tmp := make(map[string]interface{}, len(l.Fields))
 			for _, rec := range l.Fields {
-				tmp[rec.Key()] = rec.Value()
+				tmp[rec.Name] = rec.Value
 			}
 
 			buff, err := json.Marshal(tmp)

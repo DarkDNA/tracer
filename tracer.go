@@ -28,7 +28,7 @@ import (
 	stdlog "log"
 	"reflect"
 	"sync"
-	"time"
+	"time" 
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -106,8 +106,20 @@ type RawSpan struct {
 	StartTime     time.Time `json:"start_time"`
 	FinishTime    time.Time `json:"finish_time"`
 
-	Tags map[string]interface{}  `json:"tags"`
-	Logs []opentracing.LogRecord `json:"logs"`
+	Tags map[string]interface{} `json:"tags"`
+	Logs []RawLogRecord         `json:"logs"`
+}
+
+// A RawLogRecord contains all the data associated with an individual record of a log.
+type RawLogRecord struct {
+	Timestamp time.Time     `json:"timestamp"`
+	Fields    []RawLogField `json:"fields"`
+}
+
+// A RawLogField contains all the data associated with an individual field of a RawLogRecord
+type RawLogField struct {
+	Name  string `json:"name"`
+	Value interface{} `json:"value"`
 }
 
 // RawSpan returns a deep copy of the span's underlying data.
@@ -120,7 +132,7 @@ func (sp *Span) RawSpan() RawSpan {
 	for k, v := range tags {
 		raw.Tags[k] = v
 	}
-	raw.Logs = append([]opentracing.LogRecord(nil), raw.Logs...)
+	raw.Logs = append([]RawLogRecord(nil), raw.Logs...)
 	baggage := raw.Baggage
 	raw.Baggage = map[string]string{}
 	for k, v := range baggage {
@@ -266,7 +278,16 @@ func (sp *Span) log(data opentracing.LogRecord) {
 		data.Timestamp = time.Now()
 	}
 
-	sp.raw.Logs = append(sp.raw.Logs, data)
+	var record RawLogRecord 
+	record.Timestamp = data.Timestamp
+	for _, field := range data.Fields {
+		record.Fields = append(record.Fields, RawLogField{
+			Name:  field.Key(),
+			Value: field.Value(),
+		}) 
+	}
+
+	sp.raw.Logs = append(sp.raw.Logs, record)
 }
 
 // Context implements the opentracing.Span interface.

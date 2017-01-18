@@ -11,8 +11,6 @@ import (
 	"github.com/tracer/tracer/pb"
 	"github.com/tracer/tracer/server"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -79,27 +77,26 @@ func (g *GRPC) Store(ctx context.Context, req *pb.StoreRequest) (*pb.StoreRespon
 				}
 
 				if tag.Key == "logkv-json" {
-					rec := opentracing.LogRecord{
+					rec := tracer.RawLogRecord{
 						Timestamp: t,
 					}
 
 					var tmp map[string]interface{}
-
 					if err := json.Unmarshal([]byte(tag.Value), &tmp); err != nil {
 						return nil, err
 					}
 
 					for k, v := range tmp {
-						rec.Fields = append(rec.Fields, log.Object(k, v))
+						rec.Fields = append(rec.Fields, tracer.RawLogField{k, v})
 					}
 
 					sp.Logs = append(sp.Logs, rec)
 				} else {
-					sp.Logs = append(sp.Logs, opentracing.LogRecord{
+					sp.Logs = append(sp.Logs, tracer.RawLogRecord{
 						Timestamp: t,
-						Fields: []log.Field{
-							log.String("event", tag.Key),
-							log.String("payload", tag.Value),
+						Fields: []tracer.RawLogField{
+							{"event", tag.Key},
+							{"payload", tag.Value},
 						},
 					})
 				}

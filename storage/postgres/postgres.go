@@ -16,8 +16,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // load the postgres driver
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 )
 
 func init() {
@@ -155,7 +153,7 @@ ON CONFLICT (id) DO
 	for _, l := range sp.Logs {
 		tmp := make(map[string]interface{}, len(l.Fields))
 		for _, rec := range l.Fields {
-			tmp[rec.Key()] = rec.Value()
+			tmp[rec.Name] = rec.Value
 		}
 
 		buff, err := json.Marshal(tmp)
@@ -275,27 +273,26 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 			if tagTime == nil {
 				span.Tags[tagKey.String] = tagValue.String
 			} else if tagKey.String == "logkv-json" {
-				rec := opentracing.LogRecord{
+				rec := tracer.RawLogRecord{
 					Timestamp: *tagTime,
 				}
 
 				var tmp map[string]interface{}
-
 				if err := json.Unmarshal([]byte(tagValue.String), &tmp); err != nil {
 					return nil, err
 				}
 
 				for k, v := range tmp {
-					rec.Fields = append(rec.Fields, log.Object(k, v))
+					rec.Fields = append(rec.Fields, tracer.RawLogField{k, v})
 				}
 
 				span.Logs = append(span.Logs, rec)
 			} else {
-				span.Logs = append(span.Logs, opentracing.LogRecord{
+				span.Logs = append(span.Logs, tracer.RawLogRecord{
 					Timestamp: *tagTime,
-					Fields: []log.Field{
-						log.String("event", tagKey.String),
-						log.String("payload", tagValue.String),
+					Fields: []tracer.RawLogField{
+						{"event", tagKey.String},
+						{"payload", tagValue.String},
 					},
 				})
 			}
