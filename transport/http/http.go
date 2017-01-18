@@ -4,6 +4,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,7 +29,7 @@ func setup(srv *server.Server, conf map[string]interface{}) (server.QueryTranspo
 
 	h.mux.HandleFunc("/trace/", h.TraceByID)
 	h.mux.HandleFunc("/span/", h.SpanByID)
-	h.mux.HandleFunc("/trace/query/", h.QueryTraces)
+	h.mux.HandleFunc("/trace/query", h.QueryTraces)
 
 	h.mux.HandleFunc("/services", h.ListServices)
 
@@ -85,15 +86,14 @@ func (h *HTTP) ListServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(svcs); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
+	err = json.NewEncoder(w).Encode(svcs)
+	if err != nil {
+		log.Printf("Error encoding /services response: %+v", err)
 	}
 }
 
 func (h *HTTP) QueryTraces(w http.ResponseWriter, r *http.Request) {
 	args := r.URL.Query()
-
 	var qry server.Query
 
 	if tmp, ok := args["start_time"]; ok {
@@ -124,8 +124,8 @@ func (h *HTTP) QueryTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(spans); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
+	err = json.NewEncoder(w).Encode(spans)
+	if err != nil {
+		log.Printf("Error encoding /trace/query response: %+v", err)
 	}
 }
