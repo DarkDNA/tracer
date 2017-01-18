@@ -79,15 +79,15 @@ func valueType(v interface{}) (string, bool) {
 
 // A RawTrace contains all the data associated with a trace.
 type RawTrace struct {
-	TraceID   uint64        `json:"trace_id"`
+	TraceID   uint64        `json:"trace_id,string"`
 	Spans     []RawSpan     `json:"spans"`
 	Relations []RawRelation `json:"relations"`
 }
 
 // A RawRelation represents the relation between two spans.
 type RawRelation struct {
-	ParentID uint64 `json:"parent_id"`
-	ChildID  uint64 `json:"child_id"`
+	ParentID uint64 `json:"parent_id,string"`
+	ChildID  uint64 `json:"child_id,string"`
 	Kind     string `json:"kind"`
 }
 
