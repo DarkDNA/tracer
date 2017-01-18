@@ -48,11 +48,12 @@ func (h *HTTP) Start() error {
 }
 
 func (h *HTTP) TraceByID(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseUint(r.URL.Query().Get("id"), 16, 64)
+	id, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+
 	trace, err := h.srv.Storage.TraceByID(id)
 	if err != nil {
 		// TODO(dh): handle 404 special
@@ -64,11 +65,12 @@ func (h *HTTP) TraceByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTP) SpanByID(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseUint(r.URL.Query().Get("id"), 16, 64)
+	id, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+
 	span, err := h.srv.Storage.SpanByID(id)
 	if err != nil {
 		// TODO(dh): handle 404 special
